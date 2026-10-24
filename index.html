@@ -2,13 +2,15 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=www/index.html">
-  <title>BLOCK SLIDER MOBILE - Redirecting...</title>
+  <title>BLOCK SLIDER MOBILE</title>
   <script>
-    window.location.replace("www/index.html");
+    // GitHub Pagesなどのサブディレクトリ配信（末尾スラッシュあり・なし両対応）で安全にリダイレクト
+    var p = window.location.pathname;
+    if (!p.endsWith('/')) p += '/';
+    window.location.replace(window.location.origin + p + 'www/' + window.location.search + window.location.hash);
   </script>
 </head>
 <body style="background: #080a14; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-  <p>Loading Block Slider Mobile... <a href="www/index.html" style="color: #38bdf8;">Click here if not redirected</a></p>
+  <p>Loading Block Slider Mobile... <a href="./www/index.html" style="color: #38bdf8;">Click here if not redirected</a></p>
 </body>
 </html>
