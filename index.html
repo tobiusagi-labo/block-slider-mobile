@@ -2,15 +2,461 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0c1020">
   <title>BLOCK SLIDER MOBILE</title>
-  <script>
-    // GitHub Pagesなどのサブディレクトリ配信（末尾スラッシュあり・なし両対応）で安全にリダイレクト
-    var p = window.location.pathname;
-    if (!p.endsWith('/')) p += '/';
-    window.location.replace(window.location.origin + p + 'www/' + window.location.search + window.location.hash);
-  </script>
+  <meta name="description" content="スマートフォン縦画面スコアアタックパズルゲーム。直接スワイプでブロックをスライドさせ、塊をタップで消去！">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css?v=20261024_browser">
 </head>
-<body style="background: #080a14; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-  <p>Loading Block Slider Mobile... <a href="./www/index.html" style="color: #38bdf8;">Click here if not redirected</a></p>
+<body class="bg-style-city">
+
+  <div id="app-wrapper">
+    <!-- デバッグ用エラー表示エリア -->
+    <div id="debug-console" style="display: none; position: absolute; top: 0; left: 0; right: 0; background: rgba(255,0,0,0.9); color: white; font-family: monospace; font-size: 11px; z-index: 9999; max-height: 80px; overflow-y: auto; padding: 5px;"></div>
+
+    <!-- スマホ縦画面メインコンテナ -->
+    <div id="game-container">
+
+    <!-- 自動開閉トランスフォーメーション扉 (左右開閉式) -->
+    <div id="transition-door-left" class="shutter-door"></div>
+    <div id="transition-door-right" class="shutter-door"></div>
+    
+    <!-- エフェクト用レイヤー (パーティクル描画用背景Canvas) -->
+    <canvas id="effect-canvas"></canvas>
+    
+    <!-- 1. ヘッダー情報表示エリア -->
+    <div id="info-header">
+      <div class="info-box info-combo-box">
+        <span class="info-label">COMBO</span>
+        <span class="info-value" id="info-combo">0</span>
+      </div>
+      <div class="info-box info-score-box">
+        <span class="info-label">SCORE</span>
+        <span class="info-value" id="info-score">0</span>
+      </div>
+      <div class="info-box">
+        <span class="info-label">BEST</span>
+        <span class="info-value" id="info-best">0</span>
+      </div>
+      <!-- 右上のメニューボタン -->
+      <button id="menu-btn" class="header-menu-btn" title="メニュー">⚙️</button>
+    </div>
+    
+    <!-- グラビティモード用重力方向表示HUD -->
+    <div id="gravity-hud" style="display: none;">
+      <span class="gravity-hud-label">GRAVITY</span>
+      <span id="gravity-hud-dir" class="gravity-hud-dir">⬇️ DOWN</span>
+    </div>
+
+    <!-- 液晶内ダイアログオーバーレイ (通知用) -->
+    <div id="dialog-overlay" style="display: none;">
+      <div id="dialog-box">
+        <div id="dialog-message">メッセージ</div>
+        <div id="dialog-choices" class="menu-list">
+          <!-- 選択肢が自動配置されます -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ゲーム開始時のデカ文字スタートポップアップ -->
+    <div id="game-start-popup" style="display: none;">
+      <span class="game-start-text">START</span>
+    </div>
+
+    <!-- 2. メインコンテンツ（盤面およびスワイプ・タッチ操作用） -->
+    <div class="screen-content">
+      
+      <!-- 盤面ラッパー（グラスモルフィズム） -->
+      <div class="board-wrapper">
+        <div class="border-light-runner" id="border-light-runner"></div>
+        
+        <div id="board">
+          <canvas id="board-canvas"></canvas>
+        </div>
+
+        <!-- 盤面の上に重ねる大画面ランキングオーバーレイ -->
+        <div id="board-ranking-overlay" style="display: none;">
+          <div class="ranking-header-large">LEADERBOARD TOP 9999</div>
+          
+          <!-- モード切り替えタブ -->
+          <div class="ranking-tab-container">
+            <button id="rank-tab-classic" class="rank-tab-btn active">STANDARD</button>
+            <button id="rank-tab-gravity" class="rank-tab-btn">GRAVITY</button>
+            <button id="rank-tab-midnight" class="rank-tab-btn">MIDNIGHT</button>
+          </div>
+
+          <div class="ranking-grid-header">
+            <span class="r-hdr-rank">RANK</span>
+            <span class="r-hdr-name">NAME</span>
+            <span class="r-hdr-score">SCORE</span>
+            <span class="r-hdr-date">DATE</span>
+          </div>
+          <div id="large-ranking-list">
+            <!-- JSで自動構築 -->
+          </div>
+
+          <!-- マイベストスコア表示バー -->
+          <div id="my-best-ranking-bar">
+            YOUR BEST: <span id="my-best-rank">---</span> <span id="my-best-score">0</span>
+          </div>
+        </div>
+
+        <!-- 盤面の上に重ねるゲームオーバーオーバーレイ -->
+        <div id="board-gameover-overlay" style="display: none;">
+          <div class="gameover-title-large">GAME OVER</div>
+          <div class="gameover-score-container">
+            <span class="gameover-score-label">FINAL SCORE</span>
+            <span class="gameover-score-value" id="board-gameover-score">0</span>
+          </div>
+          <div class="menu-list gameover-choices" id="board-gameover-choices">
+            <!-- JSで「タイトルに戻る」「ランキング登録」を配置 -->
+          </div>
+        </div>
+
+        <!-- 重力方向通知のポップアップオーバーレイ -->
+        <div id="gravity-popup-overlay" class="gravity-popup-hidden">
+          <div class="gravity-popup-content">
+            <span class="gravity-popup-text">GRAVITY SHIFT</span>
+            <span id="gravity-popup-dir" class="gravity-popup-dir">⬇️ DOWN</span>
+          </div>
+        </div>
+
+        <!-- 盤面の上に重ねるプレイデータ集計オーバーレイ -->
+        <div id="board-stats-overlay" style="display: none;">
+          <div class="stats-header-large">STATS</div>
+
+          <!-- モード切り替えタブ -->
+          <div class="ranking-tab-container" style="margin-bottom: 12px;">
+            <button id="stats-tab-classic" class="rank-tab-btn active">STANDARD</button>
+            <button id="stats-tab-gravity" class="rank-tab-btn">GRAVITY</button>
+            <button id="stats-tab-midnight" class="rank-tab-btn">MIDNIGHT</button>
+          </div>
+
+          <div class="stats-content-large">
+            <div class="stats-row-large">
+              <span class="stats-label-large">GAMES PLAYED</span>
+              <span class="stats-val-large" id="stats-games-played">0</span>
+            </div>
+            <div class="stats-row-large">
+              <span class="stats-label-large">TOTAL BLOCKS CLEARED</span>
+              <span class="stats-val-large" id="stats-total-cleared">0</span>
+            </div>
+            <div class="stats-row-large">
+              <span class="stats-label-large">MAX CLEARED AT ONCE</span>
+              <span class="stats-val-large" id="stats-max-single">0</span>
+            </div>
+            <div class="stats-row-large">
+              <span class="stats-label-large">MAX COMBO</span>
+              <span class="stats-val-large" id="stats-max-combo">0</span>
+            </div>
+          </div>
+          <div class="stats-footer-large">
+            [TAP / ENTER] to return
+          </div>
+        </div>
+
+        <!-- 盤面の上に重ねる「遊び方（ルール説明）」オーバーレイ -->
+        <div id="board-help-overlay" style="display: none;">
+          <div class="help-header-large">遊び方 (ルール説明)</div>
+          
+          <!-- ヘルプモード切り替えタブ -->
+          <div class="help-tab-container">
+            <button id="help-tab-classic" class="help-tab-btn active">STANDARD</button>
+            <button id="help-tab-gravity" class="help-tab-btn">GRAVITY</button>
+            <button id="help-tab-midnight" class="help-tab-btn">MIDNIGHT</button>
+          </div>
+
+          <!-- CLASSICルール内容 -->
+          <div id="help-content-classic" class="help-content-large">
+            <div class="help-top">
+              <img src="game_rule_guide.png" alt="ルール説明図" class="help-img">
+            </div>
+            <div class="help-bottom">
+              <div class="help-rule-item">
+                <span class="help-rule-num">1</span>
+                <div class="help-rule-text">
+                  <strong>移動</strong><br>
+                  ブロックをスワイプしてスライドさせると、障害物にぶつかるまで進みます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">2</span>
+                <div class="help-rule-text">
+                  <strong>合体と消去</strong><br>
+                  同じ色のブロックをつなげると合体して塊になります。ブロック2個以上の塊をタップして選択し、もう一度タップで消去できます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">3</span>
+                <div class="help-rule-text">
+                  <strong>コンボでスコアアップ</strong><br>
+                  連続で消去するとコンボが発生し、得点が大幅に増加します。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">4</span>
+                <div class="help-rule-text">
+                  <strong>ロック</strong><br>
+                  ブロックを移動しても合体ができないときは、その場でロックされて動かせなくなりますが、同じ色のブロックをつなげると塊になってロックが解除されます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">5</span>
+                <div class="help-rule-text">
+                  <strong>アクティブスキル（各1ゲーム1回）</strong><br>
+                  ・<strong>⏪ (Undo)</strong>：一手前の状態に戻します。<br>
+                  ・<strong>🤚 (Move)</strong>：選択したブロックを好きな場所に移動させることができます。<br>
+                  ・<strong>🎨 (Change)</strong>：指定したブロックを、ほかの4色から好きな色へ変更できます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">6</span>
+                <div class="help-rule-text">
+                  <strong>全消しボーナス</strong><br>
+                  最終的にすべてのブロックを消去すると、最終スコアにボーナスが加算されます。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- GRAVITYルール内容 -->
+          <div id="help-content-gravity" class="help-content-large" style="display: none;">
+            <div class="help-top">
+              <img src="game_rule_guide.png" alt="ルール説明図" class="help-img" style="filter: hue-rotate(90deg) brightness(1.2);">
+            </div>
+            <div class="help-bottom">
+              <div class="help-rule-item">
+                <span class="help-rule-num">1</span>
+                <div class="help-rule-text">
+                  <strong>毎ターン重力発生（GRAVITY）</strong><br>
+                  ブロックを操作した直後、画面中央に大きく表示された方向へ重力が発生し、ロックされてないブロックが一斉にスライドします。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">2</span>
+                <div class="help-rule-text">
+                  <strong>移動</strong><br>
+                  ブロックをスワイプしてスライドさせると、障害物にぶつかるまで進みます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">3</span>
+                <div class="help-rule-text">
+                  <strong>合体と消去</strong><br>
+                  同じ色のブロックをつなげると合体して塊になります。ブロック2個以上の塊をタップして選択し、もう一度タップで消去できます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">4</span>
+                <div class="help-rule-text">
+                  <strong>コンボでスコアアップ</strong><br>
+                  連続で消去するとコンボが発生し、得点が大幅に増加します。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">5</span>
+                <div class="help-rule-text">
+                  <strong>ロック</strong><br>
+                  ブロックを移動しても合体ができないときは、その場でロックされて動かせなくなりますが、同じ色のブロックをつなげると塊になってロックが解除されます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">6</span>
+                <div class="help-rule-text">
+                  <strong>重力移動によるロックの感染</strong><br>
+                  重力でスライドしたブロックが、既にロックされている同じ色のブロックにぶつかった場合、ぶつかった側のブロックもロック状態になります。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">7</span>
+                <div class="help-rule-text">
+                  <strong>手動スライドによるロック解除</strong><br>
+                  ロック状態は、プレイヤーが自分でスライドさせた同じ色のブロックをぶつけることで解除され、通常通り消去できるようになります。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">8</span>
+                <div class="help-rule-text">
+                  <strong>アクティブスキル（各1ゲーム1回）</strong><br>
+                  ・<strong>⏪ (Undo)</strong>：一手前の状態に戻します。<br>
+                  ・<strong>🤚 (Move)</strong>：選択したブロックを好きな場所に移動させることができます。<br>
+                  ・<strong>🎨 (Change)</strong>：指定したブロックを、ほかの4色から好きな色へ変更できます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">9</span>
+                <div class="help-rule-text">
+                  <strong>全消しボーナス</strong><br>
+                  最終的にすべてのブロックを消去すると、最終スコアにボーナスが加算されます。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MIDNIGHTルール内容 -->
+          <div id="help-content-midnight" class="help-content-large" style="display: none;">
+            <div class="help-top">
+              <img src="game_rule_guide.png" alt="ルール説明図" class="help-img" style="filter: grayscale(1) brightness(0.6) contrast(1.2);">
+            </div>
+            <div class="help-bottom">
+              <div class="help-rule-item">
+                <span class="help-rule-num">1</span>
+                <div class="help-rule-text">
+                  <strong>黒一色のブラインド盤面（MIDNIGHT）</strong><br>
+                  開始時にすべてのブロックの元の色が隠されて黒色になります。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">2</span>
+                <div class="help-rule-text">
+                  <strong>移動</strong><br>
+                  ブロックをスワイプしてスライドさせると、障害物にぶつかるまで進みます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">3</span>
+                <div class="help-rule-text">
+                  <strong>合体と消去</strong><br>
+                  同じ色のブロックをつなげると合体して塊になります。ブロック2個以上の塊をタップして選択し、もう一度タップで消去できます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">4</span>
+                <div class="help-rule-text">
+                  <strong>操作による色の可視化</strong><br>
+                  ブロックを移動または合体させることで、そのブロックの色があらわれます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">5</span>
+                <div class="help-rule-text">
+                  <strong>10ターン後のブラインド化</strong><br>
+                  色が可視化したブロックは、その後何かしらの操作を10回行うと再び黒色に戻ってしまいます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">6</span>
+                <div class="help-rule-text">
+                  <strong>コンボでスコアアップ</strong><br>
+                  連続で消去するとコンボが発生し、得点が大幅に増加します。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">7</span>
+                <div class="help-rule-text">
+                  <strong>ロック</strong><br>
+                  ブロックを移動しても合体ができないときは、その場でロックされて動かせなくなりますが、同じ色のブロックをつなげると塊になってロックが解除されます。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">8</span>
+                <div class="help-rule-text">
+                  <strong>すべてのスキルが使用不可</strong><br>
+                  MIDNIGHTでは、「Undo」「Move」「Change」の3つのスキルがすべて使用不可になります。
+                </div>
+              </div>
+              <div class="help-rule-item">
+                <span class="help-rule-num">9</span>
+                <div class="help-rule-text">
+                  <strong>全消しボーナス</strong><br>
+                  最終的にすべてのブロックを消去すると、最終スコアにボーナスが加算されます。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="help-footer-large">
+            [タップ / 決定] でタイトルに戻る
+          </div>
+        </div>
+
+      </div>
+
+      <!-- タイトル・設定画面のオーバーレイ -->
+      <div id="menu-overlay">
+        
+        <!-- タイトルメニュー -->
+        <div id="menu-title-sec" class="menu-sec">
+          <div class="logo-float-wrap">
+            <img class="game-logo" src="title_logo.png" alt="BLOCK SLIDER" />
+          </div>
+          <div class="menu-list">
+            <div class="menu-item active">GAME START</div>
+            <div class="menu-item">HOW TO PLAY</div>
+            <div class="menu-item">SETTING</div>
+            <div class="menu-item">RANKING</div>
+          </div>
+        </div>
+
+        <!-- 設定メニュー -->
+        <div id="menu-settings-sec" class="menu-sec" style="display: none;">
+          <div class="menu-header">SETTINGS</div>
+          <div class="settings-list">
+            <div class="setting-row menu-item active" style="flex-direction: column; align-items: stretch; gap: 4px;">
+              <span class="setting-label" style="font-size: 11px;">NAME (MAX 10 CHARS)</span>
+              <input type="text" id="player-name-input" maxlength="10" placeholder="PLAYER" value="PLAYER">
+            </div>
+            <div class="setting-row menu-item">
+              <span class="setting-label">SOUND</span>
+              <div class="setting-control">
+                <span class="setting-arrow">◀</span>
+                <span id="setting-sound-val">ON</span>
+                <span class="setting-arrow">▶</span>
+              </div>
+            </div>
+            <div class="setting-row menu-item" id="premium-bg-setting-row">
+              <span class="setting-label">THEME</span>
+              <div class="setting-control">
+                <span class="setting-arrow">◀</span>
+                <span id="setting-bg-val">CYBERPUNK</span>
+                <span class="setting-arrow">▶</span>
+              </div>
+            </div>
+            <div class="menu-item" style="justify-content: center; font-size: 11px;">
+              PLAY STATS
+            </div>
+            <div class="menu-item" style="justify-content: center; font-size: 11px; color: #ff5555; border-color: #551111;">
+              RESET BEST SCORES
+            </div>
+            <div class="menu-item" style="margin-top: 10px; justify-content: center; font-size: 11px;">
+              SAVE & RETURN
+            </div>
+          </div>
+        </div>
+        
+      </div>
+
+      <!-- 3つのアクティブスキルボタン -->
+      <div id="skill-space-wrapper" style="display: none;">
+        <button id="skill-undo" class="skill-btn">
+          <img src="icon_undo.png" alt="Undo" class="sk-icon-img">
+        </button>
+        <button id="skill-move" class="skill-btn">
+          <img src="icon_move.png" alt="Move" class="sk-icon-img">
+        </button>
+        <button id="skill-change" class="skill-btn">
+          <img src="icon_change.png" alt="Change" class="sk-icon-img">
+        </button>
+      </div>
+
+      <!-- バナー広告スペース -->
+      <div id="sp-banner-space" style="display: none;">
+        <div class="sp-content">
+          <span class="sp-badge">AD</span>
+          <span class="sp-title">CYBER BLOCK PUZZLE</span>
+          <span class="sp-action-btn">PLAY NOW</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+  <script src="sound.js"></script>
+  <script src="ranking.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>

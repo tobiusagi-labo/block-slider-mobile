@@ -1,0 +1,17 @@
+{
+  "name": "BLOCK SLIDER MOBILE - ブロックスライダー",
+  "short_name": "ブロックスライダー",
+  "description": "スワイプでブロックをスライドさせ、塊をタップで消去する高速スコアアタックパズルゲーム！",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1020",
+  "theme_color": "#38bdf8",
+  "icons": [
+    {
+      "src": "title_logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

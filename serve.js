@@ -6,6 +6,7 @@ const os = require('os');
 const { exec } = require('child_process');
 
 const PORT = process.env.PORT || 3000;
+const ROOT_DIR = __dirname;
 const WWW_DIR = path.join(__dirname, 'www');
 
 const MIME_TYPES = {
@@ -26,7 +27,10 @@ const server = http.createServer((req, res) => {
   let reqPath = decodeURI(req.url.split('?')[0]);
   if (reqPath === '/') reqPath = '/index.html';
 
-  const filePath = path.join(WWW_DIR, reqPath);
+  let filePath = path.join(ROOT_DIR, reqPath);
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    filePath = path.join(WWW_DIR, reqPath);
+  }
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
