@@ -761,10 +761,16 @@ body.bg-style-city #game-container {
   margin-bottom: 16px;
 }
 
+#menu-settings-sec {
+  max-height: 88vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
 .settings-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .setting-row {

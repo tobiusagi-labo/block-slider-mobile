@@ -225,9 +225,12 @@ const Game = {
 
     const myBest = Ranking.getMyBest();
     this.bestScore = myBest ? myBest.score : 0;
+    Sound.initBgm();
     this.soundEnabled = Sound.enabled;
+    this.bgmEnabled = Sound.bgmEnabled;
     this.backgroundType = localStorage.getItem('imode_puzzle_background') || 'city';
     this.settingsTemp = {
+      bgm: Sound.bgmEnabled,
       sound: Sound.enabled,
       background: this.backgroundType
     };
@@ -449,6 +452,7 @@ const Game = {
   },
 
   executeStartNewGame(selectedMode = 'NORMAL') {
+    Sound.playBgm();
     this.score = 0;
     this.combo = 0;
     this.activeGroup = null;
@@ -592,6 +596,7 @@ const Game = {
   },
 
   resumeSuspendedGame() {
+    Sound.playBgm();
     const raw = localStorage.getItem('block_slider_suspended_game');
     if (!raw) return;
     try {
@@ -1865,6 +1870,7 @@ const Game = {
           this.render();
         } else if (this.menuIndex === 2) {
           this.settingsTemp = {
+            bgm: Sound.bgmEnabled,
             sound: Sound.enabled,
             background: this.backgroundType,
             width: this.width,
@@ -1882,7 +1888,7 @@ const Game = {
     }
     
     else if (this.state === 'SETTINGS') {
-      const settingsCount = 6; // 名前、音量、背景デザイン、集計、消去、保存
+      const settingsCount = 7; // 名前(0)、BGM(1)、SE(2)、背景(3)、集計(4)、消去(5)、保存(6)
       if (key === 'ArrowUp') {
         this.menuIndex = (this.menuIndex - 1 + settingsCount) % settingsCount;
         Sound.playCursor();
@@ -1892,11 +1898,14 @@ const Game = {
         Sound.playCursor();
         this.render();
       } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
-        const dir = key === 'ArrowLeft' ? -1 : 1;
         if (this.menuIndex === 1) {
-          this.settingsTemp.sound = !this.settingsTemp.sound;
+          this.settingsTemp.bgm = !this.settingsTemp.bgm;
+          Sound.setBgmEnabled(this.settingsTemp.bgm);
           Sound.playCursor();
         } else if (this.menuIndex === 2) {
+          this.settingsTemp.sound = !this.settingsTemp.sound;
+          Sound.playCursor();
+        } else if (this.menuIndex === 3) {
           this.settingsTemp.background = this.settingsTemp.background === 'city' ? 'normal' : 'city';
           Sound.playCursor();
         }
@@ -1906,18 +1915,23 @@ const Game = {
           const nameInput = document.getElementById('player-name-input');
           if (nameInput) nameInput.focus();
         } else if (this.menuIndex === 1) {
-          this.settingsTemp.sound = !this.settingsTemp.sound;
+          this.settingsTemp.bgm = !this.settingsTemp.bgm;
+          Sound.setBgmEnabled(this.settingsTemp.bgm);
           Sound.playSelect();
           this.render();
         } else if (this.menuIndex === 2) {
-          this.settingsTemp.background = this.settingsTemp.background === 'city' ? 'normal' : 'city';
+          this.settingsTemp.sound = !this.settingsTemp.sound;
           Sound.playSelect();
           this.render();
         } else if (this.menuIndex === 3) {
+          this.settingsTemp.background = this.settingsTemp.background === 'city' ? 'normal' : 'city';
+          Sound.playSelect();
+          this.render();
+        } else if (this.menuIndex === 4) {
           Sound.playSelect();
           this.state = 'STATS_VIEW';
           this.render();
-        } else if (this.menuIndex === 4) {
+        } else if (this.menuIndex === 5) {
           Sound.playSelect();
           this.showDialog(
             "RESET ALL YOUR BEST SCORES?",
@@ -1938,15 +1952,17 @@ const Game = {
               }
             }
           );
-        } else if (this.menuIndex === 5) {
+        } else if (this.menuIndex === 6) {
           Sound.playSelect();
           const nameInput = document.getElementById('player-name-input');
           if (nameInput) {
             this.playerName = nameInput.value.trim() || 'プレイヤー';
             localStorage.setItem('imode_puzzle_player_name', this.playerName);
           }
+          Sound.setBgmEnabled(this.settingsTemp.bgm);
           Sound.enabled = this.settingsTemp.sound;
           this.soundEnabled = Sound.enabled;
+          this.bgmEnabled = Sound.bgmEnabled;
 
           this.backgroundType = this.settingsTemp.background;
           localStorage.setItem('imode_puzzle_background', this.backgroundType);
@@ -2522,11 +2538,16 @@ const Game = {
 
     let audioActivated = false;
     const activateAudio = () => {
+      Sound.init();
+      Sound.resume();
       if (!audioActivated) {
-        Sound.resume();
         audioActivated = true;
       }
+      if (Sound.bgmEnabled && !Sound.bgmPlaying) {
+        Sound.playBgm();
+      }
     };
+    window.addEventListener('pointerdown', () => activateAudio(), { once: false, passive: true });
 
     // 【最適化】touchcancel（OSジェスチャーや通知等による強制中断）や画面遷移時に
     // dragActive/dragOffset がクリアされず stopBoardLoop() も呼ばれないまま、
@@ -2599,6 +2620,7 @@ const Game = {
             this.render();
           } else if (text.includes('SETTING') || text.includes('設定')) {
             this.settingsTemp = {
+              bgm: Sound.bgmEnabled,
               sound: Sound.enabled,
               background: this.backgroundType,
               width: this.width,
@@ -2784,7 +2806,12 @@ const Game = {
 
         const text = item.innerText.toUpperCase();
         console.log("Settings item clicked:", text); // デバッグ用ログ
-        if (text.includes('SOUND') || text.includes('音量') || text.includes('音')) {
+        if (text.includes('BGM')) {
+          this.settingsTemp.bgm = !this.settingsTemp.bgm;
+          Sound.setBgmEnabled(this.settingsTemp.bgm);
+          Sound.playSelect();
+          this.render();
+        } else if (text.includes('SOUND') || text.includes('SE') || text.includes('音量') || text.includes('音')) {
           this.settingsTemp.sound = !this.settingsTemp.sound;
           Sound.playSelect();
           this.render();
@@ -2824,8 +2851,10 @@ const Game = {
             this.playerName = nameInput.value.trim() || 'プレイヤー';
             localStorage.setItem('imode_puzzle_player_name', this.playerName);
           }
+          Sound.setBgmEnabled(this.settingsTemp.bgm);
           Sound.enabled = this.settingsTemp.sound;
           this.soundEnabled = Sound.enabled;
+          this.bgmEnabled = Sound.bgmEnabled;
 
           this.backgroundType = this.settingsTemp.background;
           localStorage.setItem('imode_puzzle_background', this.backgroundType);
@@ -3013,6 +3042,9 @@ const Game = {
       if (menuOverlay) menuOverlay.style.display = 'flex';
       if (settingsSec) {
         settingsSec.style.display = 'block';
+        const bgmVal = document.getElementById('setting-bgm-val');
+        if (bgmVal) bgmVal.innerText = this.settingsTemp.bgm ? 'ON' : 'OFF';
+
         const soundVal = document.getElementById('setting-sound-val');
         if (soundVal) soundVal.innerText = this.settingsTemp.sound ? 'ON' : 'OFF';
 

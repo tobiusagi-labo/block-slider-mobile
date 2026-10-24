@@ -1,8 +1,18 @@
-// sound.js - Web Audio APIを使ったレトロ8bitサウンドジェネレーター
+// sound.js - Web Audio APIを使ったレトロ8bitサウンドジェネレーター ＆ BGMループプレイヤー
 
 const Sound = {
   enabled: true,
   ctx: null,
+
+  // BGM関連
+  bgmEnabled: true,
+  bgmBuffer: null,
+  bgmSource: null,
+  bgmGainNode: null,
+  bgmLoading: false,
+  bgmPlaying: false,
+  bgmPendingPlay: false,
+  bgmVolume: 0.32,
 
   init() {
     try {
@@ -21,6 +31,103 @@ const Sound = {
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(err => console.warn("Failed to resume AudioContext", err));
+    }
+  },
+
+  initBgm() {
+    const saved = localStorage.getItem('imode_puzzle_bgm_enabled');
+    if (saved !== null) {
+      this.bgmEnabled = (saved === 'true');
+    }
+  },
+
+  setBgmEnabled(enabled) {
+    this.bgmEnabled = !!enabled;
+    localStorage.setItem('imode_puzzle_bgm_enabled', this.bgmEnabled ? 'true' : 'false');
+    if (this.bgmEnabled) {
+      this.playBgm();
+    } else {
+      this.stopBgm();
+    }
+  },
+
+  async loadBgm() {
+    if (this.bgmBuffer) return this.bgmBuffer;
+    if (this.bgmLoading) return null;
+    this.init();
+    if (!this.ctx) return null;
+
+    this.bgmLoading = true;
+    try {
+      const response = await fetch('bgm.mp3');
+      const arrayBuffer = await response.arrayBuffer();
+      this.bgmBuffer = await new Promise((resolve, reject) => {
+        this.ctx.decodeAudioData(arrayBuffer, resolve, reject);
+      });
+      this.bgmLoading = false;
+      if (this.bgmPendingPlay && this.bgmEnabled) {
+        this.bgmPendingPlay = false;
+        this.playBgm();
+      }
+      return this.bgmBuffer;
+    } catch (e) {
+      console.warn("Failed to load or decode BGM:", e);
+      this.bgmLoading = false;
+      return null;
+    }
+  },
+
+  async playBgm() {
+    if (!this.bgmEnabled) return;
+    this.init();
+    this.resume();
+
+    if (this.bgmPlaying && this.bgmSource) {
+      return;
+    }
+
+    if (!this.bgmBuffer) {
+      this.bgmPendingPlay = true;
+      this.loadBgm();
+      return;
+    }
+
+    if (!this.ctx) return;
+
+    try {
+      if (this.bgmSource) {
+        try { this.bgmSource.stop(); } catch(e){}
+        this.bgmSource.disconnect();
+        this.bgmSource = null;
+      }
+
+      const source = this.ctx.createBufferSource();
+      source.buffer = this.bgmBuffer;
+      source.loop = true; // 完全シームレス（ギャップレス）ループ再生
+
+      if (!this.bgmGainNode) {
+        this.bgmGainNode = this.ctx.createGain();
+        this.bgmGainNode.connect(this.ctx.destination);
+      }
+
+      this.bgmGainNode.gain.setValueAtTime(this.bgmVolume, this.ctx.currentTime);
+      source.connect(this.bgmGainNode);
+      source.start(0);
+
+      this.bgmSource = source;
+      this.bgmPlaying = true;
+    } catch (e) {
+      console.warn("Error playing BGM:", e);
+    }
+  },
+
+  stopBgm() {
+    this.bgmPendingPlay = false;
+    this.bgmPlaying = false;
+    if (this.bgmSource) {
+      try { this.bgmSource.stop(); } catch(e){}
+      try { this.bgmSource.disconnect(); } catch(e){}
+      this.bgmSource = null;
     }
   },
 
