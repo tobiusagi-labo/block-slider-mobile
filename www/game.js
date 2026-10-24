@@ -251,6 +251,9 @@ const Game = {
     this.generateBoard();
     this.render();
 
+    // タイトル画面表示時からBGMの再生をリクエスト
+    Sound.playBgm();
+
     window.addEventListener('resize', () => {
       this.adjustBoardSize();
       this.adjustCanvasSize();
@@ -1766,6 +1769,13 @@ const Game = {
 
   // キーボードイベント処理
   handleKeyDown(e) {
+    if (typeof activateAudio === 'function') {
+      activateAudio();
+    } else {
+      Sound.init();
+      Sound.resume();
+      if (Sound.bgmEnabled && !Sound.bgmPlaying) Sound.playBgm();
+    }
     if (document.activeElement && document.activeElement.tagName === 'INPUT') {
       if (e.key === 'Enter') {
         document.activeElement.blur();
@@ -2548,6 +2558,8 @@ const Game = {
       }
     };
     window.addEventListener('pointerdown', () => activateAudio(), { once: false, passive: true });
+    window.addEventListener('touchstart', () => activateAudio(), { once: false, passive: true });
+    window.addEventListener('click', () => activateAudio(), { once: false, passive: true });
 
     // 【最適化】touchcancel（OSジェスチャーや通知等による強制中断）や画面遷移時に
     // dragActive/dragOffset がクリアされず stopBoardLoop() も呼ばれないまま、
@@ -2583,6 +2595,7 @@ const Game = {
     window.addEventListener('mouseup', onDragEnd);
 
     document.addEventListener('click', (e) => {
+      activateAudio();
       const target = e.target;
       if (!target) return;
 

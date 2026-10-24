@@ -12,7 +12,7 @@ const Sound = {
   bgmLoading: false,
   bgmPlaying: false,
   bgmPendingPlay: false,
-  bgmVolume: 0.32,
+  bgmVolume: 0.22, // 従来の0.32の70%の音量に調整
 
   init() {
     try {
